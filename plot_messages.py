@@ -44,12 +44,24 @@ def per_period(
     colorblind: bool = typer.Option(
         False, "--colorblind", help="Use colorblind-friendly palette"
     ),
+    export: bool = typer.Option(False, "--export", help="Print CSV to stdout instead of plotting"),
 ) -> None:
     """Plot message count per day, week, or month."""
+    import csv
+    import sys
+
     if colorblind:
         sns.set_palette("colorblind")
     index = _load_timestamps(db)
     counts = pd.Series(1, index=index).resample(_FREQ[period]).sum()
+
+    if export:
+        out = counts.rolling(smooth, min_periods=1).mean() if smooth is not None else counts
+        writer = csv.writer(sys.stdout)
+        writer.writerow(["date", "count"])
+        for ts, val in out.items():
+            writer.writerow([ts.date(), val])
+        return
 
     _, ax = plt.subplots(figsize=(14, 5))
     sns.lineplot(x=counts.index, y=counts.values, alpha=0.4, label="raw", ax=ax)

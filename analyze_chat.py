@@ -4,6 +4,7 @@
 
 import re
 import csv
+import sqlite3
 import sys
 from collections import defaultdict, Counter
 
@@ -23,37 +24,27 @@ def load_stopwords(path: str = "stopwords.txt") -> set[str]:
 
 STOP_WORDS = load_stopwords()
 
-MSG_RE = re.compile(r"^(\d{2}/\d{2}/\d{4}), \d{2}:\d{2} - ([^:]+): (.+)$")
-DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4}),")
+_OMITTED = {"<media omitted>", "null", "this message was deleted"}
 
 
-def parse(file: str = "cats.txt") -> tuple[defaultdict[str, dict], dict[str, str]]:
+def parse(db: str = "cats.db") -> tuple[defaultdict[str, dict], dict[str, str]]:
     messages_by_day: defaultdict[str, dict] = defaultdict(
         lambda: {"messages": [], "senders": Counter()}
     )
     all_senders: set[str] = set()
-    current_date = None
-    with open(file, encoding="utf-8") as f:
-        for line in f:
-            line = line.rstrip("\n")
-            m = MSG_RE.match(line)
-            if m:
-                current_date = m.group(1)
-                sender = m.group(2).strip()
-                text = m.group(3)
-                if text.strip().lower() in (
-                    "<media omitted>",
-                    "null",
-                    "this message was deleted",
-                ):
-                    continue
-                all_senders.add(sender)
-                messages_by_day[current_date]["messages"].append(text)
-                messages_by_day[current_date]["senders"][sender] += 1
-            elif current_date and not DATE_RE.match(line):
-                msgs = messages_by_day[current_date]["messages"]
-                if msgs:
-                    msgs[-1] += " " + line
+    con = sqlite3.connect(db)
+    cur = con.cursor()
+    cur.execute(
+        "SELECT DATE(ts), sender, body FROM messages"
+        " WHERE is_system = 0 AND sender IS NOT NULL"
+    )
+    for date, sender, body in cur.fetchall():
+        if body.strip().lower() in _OMITTED:
+            continue
+        all_senders.add(sender)
+        messages_by_day[date]["messages"].append(body)
+        messages_by_day[date]["senders"][sender] += 1
+    con.close()
     return messages_by_day, build_display_names(all_senders)
 
 
@@ -106,7 +97,7 @@ def apply_aliases(display_names: dict[str, str], pairs: list[str]) -> None:
 
 
 def analyze(
-    file: str = "cats.txt",
+    db: str = "cats.db",
     top: int = 10,
     top_words: int = 5,
     csv_output: bool = False,
@@ -120,7 +111,7 @@ def analyze(
     """Analyze WhatsApp chat history and show busiest days with top keywords.
 
     Args:
-        file:         Path to the chat export file.
+        db:           Path to the SQLite database.
         top:          Number of days to show (default: 10).
         top_words:    Number of top words per day (default: 5).
         csv_output:   Print output as CSV instead of a table.
@@ -136,7 +127,7 @@ def analyze(
     global _bidi_enabled
     if no_bidi:
         _bidi_enabled = False
-    messages_by_day, display_names = parse(file)
+    messages_by_day, display_names = parse(db)
     if os.path.exists(aliases_file):
         with open(aliases_file, encoding="utf-8") as f:
             apply_aliases(
