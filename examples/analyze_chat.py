@@ -108,7 +108,7 @@ def analyze(
     per_user: bool = False,
     top_senders: int = 3,
     aliases: str = "",
-    aliases_file: str = "aliases.txt",
+    aliases_file: str | None = None,
     no_bidi: bool = False,
 ) -> None:
     """Analyze WhatsApp chat history and show busiest days with top keywords.
@@ -122,16 +122,14 @@ def analyze(
         per_user:     Add a column showing per-sender message counts.
         top_senders:  Number of top senders to show when --per_user is set (default: 3).
         aliases:      Override display names inline, e.g. "Meni Sadigurschi=מני,Other=X".
-        aliases_file: Path to aliases file (default: aliases.txt). Lines: "Full Name=Label".
+        aliases_file: Path to aliases file. Lines: "Full Name=Label".
         no_bidi:      Disable bidi reordering (useful when pasting into RTL-aware apps).
     """
-    import os
-
     global _bidi_enabled
     if no_bidi:
         _bidi_enabled = False
     messages_by_day, display_names = parse(db)
-    if os.path.exists(aliases_file):
+    if aliases_file is not None:
         with open(aliases_file, encoding="utf-8") as f:
             apply_aliases(
                 display_names,
