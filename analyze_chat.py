@@ -61,9 +61,9 @@ _bidi_enabled = True
 
 
 def bidi(text: str) -> str:
-    """Apply bidi algorithm if the text contains Hebrew characters."""
     if _bidi_enabled and any("\u0590" <= c <= "\u05ff" for c in text):
-        return get_display(text)
+        result = get_display(text)
+        return result.decode("utf-8") if isinstance(result, bytes) else result
     return text
 
 
@@ -141,7 +141,7 @@ def analyze(
         with open(aliases_file, encoding="utf-8") as f:
             apply_aliases(
                 display_names,
-                [l.split("#")[0].strip() for l in f if "=" in l.split("#")[0]],
+                [line.split("#")[0].strip() for line in f if "=" in line.split("#")[0]],
             )
     if aliases:
         apply_aliases(display_names, aliases.split(","))
