@@ -41,8 +41,13 @@ def per_period(
     smooth: int | None = typer.Option(
         None, "--smooth", "-s", help="Rolling mean window in periods (omit to disable)"
     ),
+    colorblind: bool = typer.Option(
+        False, "--colorblind", help="Use colorblind-friendly palette"
+    ),
 ) -> None:
     """Plot message count per day, week, or month."""
+    if colorblind:
+        sns.set_palette("colorblind")
     index = _load_timestamps(db)
     counts = pd.Series(1, index=index).resample(_FREQ[period]).sum()
 
@@ -68,8 +73,13 @@ def per_period(
 def sliding(
     db: Path = typer.Argument(Path("cats.db"), help="SQLite database"),
     window: int = typer.Option(12, "--window", "-w", help="Window size in hours"),
+    colorblind: bool = typer.Option(
+        False, "--colorblind", help="Use colorblind-friendly palette"
+    ),
 ) -> None:
     """Plot message count using a sliding window sum."""
+    if colorblind:
+        sns.set_palette("colorblind")
     index = _load_timestamps(db)
     hourly = pd.Series(1, index=index).resample("h").sum()
     rolled = hourly.rolling(window, min_periods=1).sum()
@@ -97,8 +107,13 @@ def by_sender(
     normalized: bool = typer.Option(
         False, "--normalized", help="Normalize to 100%% (implies --stacked)"
     ),
+    colorblind: bool = typer.Option(
+        False, "--colorblind", help="Use colorblind-friendly palette"
+    ),
 ) -> None:
     """Plot message count per sender per day, week, or month."""
+    if colorblind:
+        sns.set_palette("colorblind")
     con = sqlite3.connect(db)
     senders_df = pd.read_sql_query(
         "SELECT sender, COUNT(*) AS cnt FROM messages"
@@ -144,7 +159,9 @@ def by_sender(
     _, ax = plt.subplots(figsize=(14, 5))
 
     if stacked:
-        palette = sns.color_palette("tab10", n_colors=len(pivoted.columns))
+        palette = sns.color_palette(
+            "colorblind" if colorblind else "Set2", n_colors=len(pivoted.columns)
+        )
         ax.stackplot(
             pivoted.index,
             pivoted.T.values,
