@@ -1,0 +1,14 @@
+[project]
+name = "cats2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.3",
+    "ty>=0.0.40",
+    "typer>=0.26.2",
+    "python-bidi>=0.6.6",
+    "seaborn>=0.13.2",
+]

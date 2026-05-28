@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data / chat backups
+cats.txt
+cats_update.txt
+cats.db
+messages.db
+
+# Generated outputs
+*.csv
+summary*.md
+legend.md
+aliases.txt
+
+# Stuff folder
+stuff/
+
+# Claude memory
+.claude/
