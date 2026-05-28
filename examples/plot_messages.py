@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# dependencies = ["matplotlib", "pandas", "seaborn", "typer", "python-bidi"]
+# ///
 """Plot WhatsApp message frequency over time (seaborn version)."""
 
 import sqlite3

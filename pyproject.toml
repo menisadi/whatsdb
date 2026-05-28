@@ -1,14 +1,20 @@
 [project]
-name = "cats2"
+name = "whatsdb"
 version = "0.1.0"
-description = "Add your description here"
+description = "Parse WhatsApp chat exports into a SQLite database"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "matplotlib>=3.10.9",
-    "pandas>=3.0.3",
-    "ty>=0.0.40",
-    "typer>=0.26.2",
-    "python-bidi>=0.6.6",
-    "seaborn>=0.13.2",
-]
+dependencies = []
+
+[project.scripts]
+whatsdb = "build_db:main"
+
+[tool.uv]
+package = true
+
+[tool.setuptools]
+py-modules = ["build_db"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

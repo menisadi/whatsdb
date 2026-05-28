@@ -7,12 +7,15 @@ import csv
 import sqlite3
 import sys
 from collections import defaultdict, Counter
+from pathlib import Path
 
 import fire
 from bidi.algorithm import get_display
 
 
-def load_stopwords(path: str = "stopwords.txt") -> set[str]:
+def load_stopwords(path: str | None = None) -> set[str]:
+    if path is None:
+        path = str(Path(__file__).parent / "stopwords.txt")
     words = set()
     with open(path, encoding="utf-8") as f:
         for line in f:
