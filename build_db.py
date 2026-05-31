@@ -9,11 +9,21 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-_MSG_RE = re.compile(r"^(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}) - (.*)")
+_MSG_RE = re.compile(
+    r"^(?:"
+    r"\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] "  # new: [DD/MM/YYYY, HH:MM:SS] …
+    r"|"
+    r"(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}) - "  # old: DD/MM/YYYY, HH:MM - …
+    r")(.*)"
+)
 
 
 def _parse_ts(ts_str: str) -> str:
-    return datetime.strptime(ts_str, "%d/%m/%Y, %H:%M").strftime("%Y-%m-%d %H:%M")
+    if len(ts_str) > 17:
+        return datetime.strptime(ts_str, "%d/%m/%Y, %H:%M:%S").strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    return datetime.strptime(ts_str, "%d/%m/%Y, %H:%M").strftime("%Y-%m-%d %H:%M:00")
 
 
 @dataclass
@@ -35,8 +45,8 @@ def _parse_file(path: Path) -> list[Message]:
             if m:
                 if current is not None:
                     messages.append(current)
-                ts = _parse_ts(m.group(1))
-                content = m.group(2)
+                ts = _parse_ts(m.group(1) or m.group(2))
+                content = m.group(3)
                 if ": " in content:
                     sender, _, body = content.partition(": ")
                     current = Message(
