@@ -12,8 +12,7 @@ wheels/
 # Data / chat backups
 cats.txt
 cats_update.txt
-cats.db
-messages.db
+*.db
 
 # Generated outputs
 *.csv
