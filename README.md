@@ -18,17 +18,13 @@ Export your chat from WhatsApp ("Export Chat" → without media) and run:
 whatsdb --input chat.txt
 ```
 
-This creates `cats.db` in the current directory. Multiple files are merged and sorted by timestamp:
-
-```bash
-whatsdb --input chat1.txt chat2.txt --output merged.db
-```
+This creates `cats.db` in the current directory.
 
 ### Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--input FILE [FILE …]` | `cats.txt` | One or more export files |
+| `--input FILE` | `cats.txt` | Chat export file |
 | `--output FILE` | `cats.db` | Output SQLite database |
 | `--force` | off | Overwrite existing DB without prompting |
 

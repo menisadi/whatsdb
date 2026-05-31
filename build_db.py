@@ -1,4 +1,4 @@
-"""Parse WhatsApp chat export(s) into a SQLite database."""
+"""Parse a WhatsApp chat export into a SQLite database."""
 
 from __future__ import annotations
 
@@ -101,14 +101,13 @@ def _build_db(db_path: Path, messages: list[Message]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Parse WhatsApp chat export(s) into SQLite"
+        description="Parse a WhatsApp chat export into SQLite"
     )
     ap.add_argument(
         "--input",
-        nargs="+",
-        default=["cats.txt"],
+        default="cats.txt",
         metavar="FILE",
-        help="One or more chat export files (default: cats.txt)",
+        help="Chat export file (default: cats.txt)",
     )
     ap.add_argument(
         "--output",
@@ -123,13 +122,12 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    input_paths = [Path(p) for p in args.input]
+    input_path = Path(args.input)
     output_path = Path(args.output)
 
-    for p in input_paths:
-        if not p.exists():
-            print(f"Error: input file '{p}' not found")
-            return
+    if not input_path.exists():
+        print(f"Error: input file '{input_path}' not found")
+        return
 
     if output_path.exists() and not args.force:
         answer = input(f"'{output_path}' already exists. Overwrite? [y/N] ")
@@ -137,18 +135,12 @@ def main() -> None:
             print("Aborted.")
             return
 
-    all_messages: list[Message] = []
-    for p in input_paths:
-        print(f"Parsing {p}...")
-        msgs = _parse_file(p)
-        print(f"  {len(msgs):,} messages")
-        all_messages.extend(msgs)
-
-    all_messages.sort(key=lambda m: m.ts)
-    print(f"Total: {len(all_messages):,} messages")
+    print(f"Parsing {input_path}...")
+    messages = _parse_file(input_path)
+    print(f"  {len(messages):,} messages")
 
     print(f"Writing {output_path}...")
-    _build_db(output_path, all_messages)
+    _build_db(output_path, messages)
     print("Done.")
 
 
