@@ -7,6 +7,7 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 _MSG_RE = re.compile(
@@ -100,8 +101,11 @@ def _build_db(db_path: Path, messages: list[Message]) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(
-        description="Parse a WhatsApp chat export into SQLite"
+    ap = argparse.ArgumentParser(description="Parse a WhatsApp chat export into SQLite")
+    ap.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_pkg_version('whatsdb')}",
     )
     ap.add_argument(
         "--input",
