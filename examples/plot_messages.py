@@ -138,8 +138,8 @@ def by_sender(
     con = sqlite3.connect(db)
     senders_df = pd.read_sql_query(
         "SELECT sender, COUNT(*) AS cnt FROM messages"
-        " WHERE is_system = 0 AND sender IS NOT NULL"
-        " GROUP BY sender",
+        + " WHERE is_system = 0 AND sender IS NOT NULL"
+        + " GROUP BY sender",
         con,
     )
     con.close()
@@ -148,8 +148,8 @@ def by_sender(
 
     con = sqlite3.connect(db)
     df = pd.read_sql_query(
-        f"SELECT ts, sender FROM messages WHERE is_system = 0"
-        f" AND sender IN ({','.join('?' * top)})",
+        "SELECT ts, sender FROM messages WHERE is_system = 0"
+        + f" AND sender IN ({','.join('?' * top)})",
         con,
         params=top_senders,
     )

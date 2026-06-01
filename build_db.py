@@ -12,10 +12,10 @@ from pathlib import Path
 
 _MSG_RE = re.compile(
     r"^(?:"
-    r"\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] "  # new: [DD/MM/YYYY, HH:MM:SS] …
-    r"|"
-    r"(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}) - "  # old: DD/MM/YYYY, HH:MM - …
-    r")(.*)"
+    + r"\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] "  # new: [DD/MM/YYYY, HH:MM:SS] …
+    + r"|"
+    + r"(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}) - "  # old: DD/MM/YYYY, HH:MM - …
+    + r")(.*)"
 )
 
 

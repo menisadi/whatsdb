@@ -8,6 +8,7 @@ import sqlite3
 import sys
 from collections import defaultdict, Counter
 from pathlib import Path
+from typing import Any
 
 import fire
 from bidi.algorithm import get_display
@@ -30,8 +31,8 @@ STOP_WORDS = load_stopwords()
 _OMITTED = {"<media omitted>", "null", "this message was deleted"}
 
 
-def parse(db: str = "cats.db") -> tuple[defaultdict[str, dict], dict[str, str]]:
-    messages_by_day: defaultdict[str, dict] = defaultdict(
+def parse(db: str = "cats.db") -> tuple[defaultdict[str, dict[str, Any]], dict[str, str]]:
+    messages_by_day: defaultdict[str, dict[str, Any]] = defaultdict(
         lambda: {"messages": [], "senders": Counter()}
     )
     all_senders: set[str] = set()
@@ -39,7 +40,7 @@ def parse(db: str = "cats.db") -> tuple[defaultdict[str, dict], dict[str, str]]:
     cur = con.cursor()
     cur.execute(
         "SELECT DATE(ts), sender, body FROM messages"
-        " WHERE is_system = 0 AND sender IS NOT NULL"
+        + " WHERE is_system = 0 AND sender IS NOT NULL"
     )
     for date, sender, body in cur.fetchall():
         if body.strip().lower() in _OMITTED:
@@ -78,7 +79,7 @@ def build_display_names(all_senders: set[str]) -> dict[str, str]:
     return result
 
 
-def fmt_senders(sender_counts: Counter, display_names: dict[str, str], n: int) -> str:
+def fmt_senders(sender_counts: Counter[str], display_names: dict[str, str], n: int) -> str:
     return " ".join(
         f"{bidi(display_names.get(name, name.split()[0]))}({cnt})"
         for name, cnt in sender_counts.most_common(n)
