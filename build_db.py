@@ -81,6 +81,7 @@ def _build_db(db_path: Path, messages: list[Message]) -> None:
 
         CREATE INDEX idx_ts     ON messages(ts);
         CREATE INDEX idx_sender ON messages(sender);
+        CREATE INDEX idx_dedup  ON messages(ts, body, sender);
 
         CREATE VIRTUAL TABLE messages_fts USING fts5(
             body, sender,

@@ -31,7 +31,9 @@ STOP_WORDS = load_stopwords()
 _OMITTED = {"<media omitted>", "null", "this message was deleted"}
 
 
-def parse(db: str = "cats.db") -> tuple[defaultdict[str, dict[str, Any]], dict[str, str]]:
+def parse(
+    db: str = "cats.db",
+) -> tuple[defaultdict[str, dict[str, Any]], dict[str, str]]:
     messages_by_day: defaultdict[str, dict[str, Any]] = defaultdict(
         lambda: {"messages": [], "senders": Counter()}
     )
@@ -79,17 +81,23 @@ def build_display_names(all_senders: set[str]) -> dict[str, str]:
     return result
 
 
-def fmt_senders(sender_counts: Counter[str], display_names: dict[str, str], n: int) -> str:
+def fmt_senders(
+    sender_counts: Counter[str], display_names: dict[str, str], n: int
+) -> str:
     return " ".join(
         f"{bidi(display_names.get(name, name.split()[0]))}({cnt})"
         for name, cnt in sender_counts.most_common(n)
     )
 
 
-def top_words_for(msgs: list[str], n: int, exclude: set[str] = set()) -> list[tuple[str, int]]:
+def top_words_for(
+    msgs: list[str], n: int, exclude: set[str] = set()
+) -> list[tuple[str, int]]:
     all_text = " ".join(msgs)
     words = re.findall(r"[\u0590-\u05ffa-zA-Z']{2,}", all_text.lower())
-    words = [w for w in words if w not in STOP_WORDS and w not in exclude and len(w) > 2]
+    words = [
+        w for w in words if w not in STOP_WORDS and w not in exclude and len(w) > 2
+    ]
     return Counter(words).most_common(n)
 
 
@@ -130,7 +138,9 @@ def analyze(
     if no_bidi:
         _bidi_enabled = False
     messages_by_day, display_names = parse(db)
-    name_tokens: set[str] = {token.lower() for name in display_names for token in name.split()}
+    name_tokens: set[str] = {
+        token.lower() for name in display_names for token in name.split()
+    }
     if aliases_file is not None:
         with open(aliases_file, encoding="utf-8") as f:
             apply_aliases(

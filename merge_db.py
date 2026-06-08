@@ -18,6 +18,9 @@ def _merge(target: Path, source: Path) -> int:
     con = sqlite3.connect(target)
     try:
         con.execute("ATTACH ? AS upd", (str(source),))
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dedup ON messages(ts, body, sender)"
+        )
 
         before_main = _count(con, "messages")
         before_upd = _count(con, "upd.messages")
