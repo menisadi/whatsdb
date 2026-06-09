@@ -31,9 +31,19 @@ STOP_WORDS = load_stopwords()
 _OMITTED = {"<media omitted>", "null", "this message was deleted"}
 
 
+_PERIOD_SQL = {
+    "day": "DATE(ts)",
+    "week": "strftime('%Y-%W', ts)",
+    "month": "strftime('%Y-%m', ts)",
+}
+
+
 def parse(
     db: str = "cats.db",
+    period: str = "day",
 ) -> tuple[defaultdict[str, dict[str, Any]], dict[str, str]]:
+    if period not in _PERIOD_SQL:
+        raise ValueError(f"period must be one of: {', '.join(_PERIOD_SQL)}")
     messages_by_day: defaultdict[str, dict[str, Any]] = defaultdict(
         lambda: {"messages": [], "senders": Counter()}
     )
@@ -41,7 +51,7 @@ def parse(
     con = sqlite3.connect(db)
     cur = con.cursor()
     cur.execute(
-        "SELECT DATE(ts), sender, body FROM messages"
+        f"SELECT {_PERIOD_SQL[period]}, sender, body FROM messages"
         + " WHERE is_system = 0 AND sender IS NOT NULL"
     )
     for date, sender, body in cur.fetchall():
@@ -119,13 +129,14 @@ def analyze(
     aliases: str = "",
     aliases_file: str | None = None,
     no_bidi: bool = False,
+    period: str = "day",
 ) -> None:
     """Analyze WhatsApp chat history and show busiest days with top keywords.
 
     Args:
         db:           Path to the SQLite database.
-        top:          Number of days to show (default: 10).
-        top_words:    Number of top words per day (default: 5).
+        top:          Number of periods to show (default: 10).
+        top_words:    Number of top words per period (default: 5).
         csv_output:   Print output as CSV instead of a table.
         counts:       Show occurrence count next to each top word.
         per_user:     Add a column showing per-sender message counts.
@@ -133,11 +144,12 @@ def analyze(
         aliases:      Override display names inline, e.g. "Meni Sadigurschi=מני,Other=X".
         aliases_file: Path to aliases file. Lines: "Full Name=Label".
         no_bidi:      Disable bidi reordering (useful when pasting into RTL-aware apps).
+        period:       Grouping period: day, week, or month (default: day).
     """
     global _bidi_enabled
     if no_bidi:
         _bidi_enabled = False
-    messages_by_day, display_names = parse(db)
+    messages_by_day, display_names = parse(db, period)
     name_tokens: set[str] = {
         token.lower() for name in display_names for token in name.split()
     }
@@ -180,7 +192,8 @@ def analyze(
                 row.append(fmt_senders(senders, display_names, top_senders))
             writer.writerow(row)
     else:
-        header = f"{'Rank':<5} {'Date':<14} {'Messages':<10} Top words"
+        period_label = period.capitalize()
+        header = f"{'Rank':<5} {period_label:<14} {'Messages':<10} Top words"
         if per_user:
             header += f"  {'Per user'}"
         print(header)
