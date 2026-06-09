@@ -32,7 +32,7 @@ def _load_timestamps(db: Path) -> pd.DatetimeIndex:
     con = sqlite3.connect(db)
     df = pd.read_sql_query("SELECT ts FROM messages WHERE is_system = 0", con)
     con.close()
-    return pd.DatetimeIndex(pd.to_datetime(df["ts"], format="%Y-%m-%d %H:%M"))
+    return pd.DatetimeIndex(pd.to_datetime(df["ts"], format="ISO8601"))
 
 
 @app.command()
@@ -155,7 +155,7 @@ def by_sender(
     )
     con.close()
 
-    df["ts"] = pd.to_datetime(df["ts"], format="%Y-%m-%d %H:%M")
+    df["ts"] = pd.to_datetime(df["ts"], format="ISO8601")
     df = df.set_index("ts")
 
     pivoted = (
