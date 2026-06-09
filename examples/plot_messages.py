@@ -149,7 +149,7 @@ def by_sender(
     con = sqlite3.connect(db)
     df = pd.read_sql_query(
         "SELECT ts, sender FROM messages WHERE is_system = 0"
-        + f" AND sender IN ({','.join('?' * top)})",
+        + f" AND sender IN ({','.join('?' * len(top_senders))})",
         con,
         params=top_senders,
     )
