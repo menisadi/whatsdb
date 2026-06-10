@@ -24,8 +24,7 @@ def load_messages(db: str, top_senders: int) -> tuple[list[str], list[str]]:
     con = sqlite3.connect(db)
     cur = con.cursor()
     cur.execute(
-        "SELECT body, sender FROM messages"
-        " WHERE is_system = 0 AND sender IS NOT NULL"
+        "SELECT body, sender FROM messages WHERE is_system = 0 AND sender IS NOT NULL"
     )
     rows = [
         (body, sender)
@@ -61,19 +60,29 @@ def build_pipeline(char: bool, seed: int) -> Pipeline:
     clf = LogisticRegression(max_iter=1000, C=5.0, random_state=seed)
     if not char:
         return Pipeline([("tfidf", word_vec), ("clf", clf)])
-    return Pipeline([
-        ("features", FeatureUnion([
-            ("word", word_vec),
-            ("char", TfidfVectorizer(
-                analyzer="char_wb",
-                ngram_range=(2, 5),
-                min_df=5,
-                max_features=100_000,
-                sublinear_tf=True,
-            )),
-        ])),
-        ("clf", clf),
-    ])
+    return Pipeline(
+        [
+            (
+                "features",
+                FeatureUnion(
+                    [
+                        ("word", word_vec),
+                        (
+                            "char",
+                            TfidfVectorizer(
+                                analyzer="char_wb",
+                                ngram_range=(2, 5),
+                                min_df=5,
+                                max_features=100_000,
+                                sublinear_tf=True,
+                            ),
+                        ),
+                    ]
+                ),
+            ),
+            ("clf", clf),
+        ]
+    )
 
 
 def get_word_features(pipeline: Pipeline) -> tuple[list[str], list]:
@@ -85,7 +94,9 @@ def get_word_features(pipeline: Pipeline) -> tuple[list[str], list]:
     union: FeatureUnion = pipeline.named_steps["features"]
     all_names = union.get_feature_names_out()
     word_mask = [name.startswith("word__") for name in all_names]
-    display_names = [name[len("word__"):] for name, m in zip(all_names, word_mask) if m]
+    display_names = [
+        name[len("word__") :] for name, m in zip(all_names, word_mask) if m
+    ]
     word_indices = [i for i, m in enumerate(word_mask) if m]
     coef = clf.coef_[:, word_indices]
     return display_names, coef
@@ -103,9 +114,7 @@ def print_top_features(pipeline: Pipeline, n: int) -> None:
         print(f"  {short_name(label):<20} {tokens}")
 
 
-def print_lengths(
-    X_test: list[str], y_test: list[str], y_pred: list[str]
-) -> None:
+def print_lengths(X_test: list[str], y_test: list[str], y_pred: list[str]) -> None:
     print("\nAccuracy by message length:")
     print("-" * 50)
     for lo, hi in _LENGTH_BINS:
@@ -160,7 +169,9 @@ def classify(
     )
 
     model_desc = "word + char n-grams" if char else "word n-grams only"
-    print(f"\nTraining on {len(X_train):,} messages, evaluating on {len(X_test):,} ({model_desc})...")
+    print(
+        f"\nTraining on {len(X_train):,} messages, evaluating on {len(X_test):,} ({model_desc})..."
+    )
     pipeline = build_pipeline(char, seed)
     pipeline.fit(X_train, y_train)
 
