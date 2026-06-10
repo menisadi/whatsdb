@@ -125,6 +125,12 @@
 פשוט
 בסוף
 קודם
+נראה
+כנראה
+לדעתי
+הייתי
+כזה
+לעשות
 
 # New: generic connectives and filler
 להיות
@@ -235,3 +241,7 @@ edited
 message
 https
 omitted
+וגם
+ואז
+לפי
+אגב
