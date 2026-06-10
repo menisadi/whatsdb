@@ -2,6 +2,7 @@
 # dependencies = ["scikit-learn", "fire"]
 # ///
 
+import re
 import sqlite3
 from collections import Counter
 from pathlib import Path
@@ -9,11 +10,14 @@ from pathlib import Path
 import fire
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline, FeatureUnion
 
 _OMITTED = {"<media omitted>", "null", "this message was deleted"}
+_WORD_RE = re.compile(r"[֐-׿\w]+")
+
+_LENGTH_BINS = [(1, 3), (4, 9), (10, 19), (20, None)]
 
 
 def load_messages(db: str, top_senders: int) -> tuple[list[str], list[str]]:
@@ -43,9 +47,11 @@ def short_name(name: str) -> str:
     return name.split()[0]
 
 
-def print_top_features(
-    pipeline: Pipeline, label_names: list[str], n: int
-) -> None:
+def word_count(text: str) -> int:
+    return len(_WORD_RE.findall(text))
+
+
+def print_top_features(pipeline: Pipeline, n: int) -> None:
     union: FeatureUnion = pipeline.named_steps["features"]
     feature_names = union.get_feature_names_out()
     clf: LogisticRegression = pipeline.named_steps["clf"]
@@ -59,21 +65,46 @@ def print_top_features(
         print(f"  {short_name(label):<20} {tokens}")
 
 
+def print_length_breakdown(
+    X_test: list[str], y_test: list[str], y_pred: list[str]
+) -> None:
+    print("\nAccuracy by message length:")
+    print("-" * 50)
+    for lo, hi in _LENGTH_BINS:
+        label = f"{lo}–{hi}" if hi else f"{lo}+"
+        mask = [
+            lo <= word_count(t) <= (hi if hi else 10**9)
+            for t in X_test
+        ]
+        yt = [y for y, m in zip(y_test, mask) if m]
+        yp = [y for y, m in zip(y_pred, mask) if m]
+        if not yt:
+            continue
+        acc = accuracy_score(yt, yp)
+        print(f"  {label + ' words':<16} n={len(yt):>6,}   accuracy={acc:.0%}")
+
+
 def classify(
     db: str = "cats.db",
     top_senders: int = 5,
     top_features: int = 10,
     test_size: float = 0.2,
     seed: int = 42,
+    report: bool = True,
+    features: bool = True,
+    length_breakdown: bool = True,
 ) -> None:
     """Train a sender attribution classifier on a whatsdb SQLite database.
 
     Args:
-        db:           Path to the SQLite database (default: cats.db).
-        top_senders:  Number of most active senders to classify (default: 5).
-        top_features: Number of top discriminating tokens to show per sender.
-        test_size:    Fraction of data held out for evaluation (default: 0.2).
-        seed:         Random seed for reproducibility.
+        db:                Path to the SQLite database (default: cats.db).
+        top_senders:       Number of most active senders to classify (default: 5).
+        top_features:      Number of top discriminating tokens to show per sender.
+        test_size:         Fraction of data held out for evaluation (default: 0.2).
+        seed:              Random seed for reproducibility.
+        report:            Show per-sender classification report (default: True).
+        features:          Show top discriminating tokens per sender (default: True).
+        length_breakdown:  Show accuracy broken down by message length (default: True).
     """
     db_path = Path(db)
     if not db_path.exists():
@@ -115,9 +146,15 @@ def classify(
 
     y_pred = pipeline.predict(X_test)
     target_names = [short_name(s) for s in pipeline.named_steps["clf"].classes_]
-    print("\n" + classification_report(y_test, y_pred, target_names=target_names))
 
-    print_top_features(pipeline, target_names, top_features)
+    if report:
+        print("\n" + classification_report(y_test, y_pred, target_names=target_names))
+
+    if length_breakdown:
+        print_length_breakdown(X_test, y_test, y_pred)
+
+    if features:
+        print_top_features(pipeline, top_features)
 
 
 if __name__ == "__main__":
