@@ -159,6 +159,7 @@ def converse(
     senders: int = 2,
     turns: int = 20,
     state_size: int = 2,
+    coherent: bool = False,
 ) -> None:
     """Simulate a conversation by alternating between per-sender Markov chain models.
 
@@ -167,6 +168,7 @@ def converse(
         senders:      Number of participants — picks the most active senders (default: 2).
         turns:        Total number of messages to generate (default: 20).
         state_size:   Markov chain order — 1 for sparse data, 2 for more coherent output.
+        coherent:     Seed each turn from keywords in the previous message (default: False).
     """
     db_path = Path(db)
     if not db_path.exists():
@@ -207,7 +209,7 @@ def converse(
         speaker = random.choices(pool, weights=pool_weights, k=1)[0]
         last_sender = speaker
 
-        sentence = _make_sentence(models[speaker], last_sentence)
+        sentence = _make_sentence(models[speaker], last_sentence if coherent else None)
         last_sentence = sentence if sentence != "(...)" else last_sentence
 
         print(f"  {short_name(speaker):<16} {sentence}")
