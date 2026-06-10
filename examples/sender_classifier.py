@@ -51,16 +51,54 @@ def word_count(text: str) -> int:
     return len(_WORD_RE.findall(text))
 
 
-def print_top_features(pipeline: Pipeline, n: int) -> None:
+def build_pipeline(char_ngrams: bool, seed: int) -> Pipeline:
+    word_vec = TfidfVectorizer(
+        token_pattern=r"[֐-׿\w]{2,}",
+        min_df=5,
+        max_features=50_000,
+        sublinear_tf=True,
+    )
+    clf = LogisticRegression(max_iter=1000, C=5.0, random_state=seed)
+    if not char_ngrams:
+        return Pipeline([("tfidf", word_vec), ("clf", clf)])
+    return Pipeline([
+        ("features", FeatureUnion([
+            ("word", word_vec),
+            ("char", TfidfVectorizer(
+                analyzer="char_wb",
+                ngram_range=(2, 5),
+                min_df=5,
+                max_features=100_000,
+                sublinear_tf=True,
+            )),
+        ])),
+        ("clf", clf),
+    ])
+
+
+def get_word_features(pipeline: Pipeline) -> tuple[list[str], list]:
+    """Return (display_names, coef_matrix) using only word-level features."""
+    clf: LogisticRegression = pipeline.named_steps["clf"]
+    if "tfidf" in pipeline.named_steps:
+        vec: TfidfVectorizer = pipeline.named_steps["tfidf"]
+        return list(vec.get_feature_names_out()), clf.coef_
     union: FeatureUnion = pipeline.named_steps["features"]
-    feature_names = union.get_feature_names_out()
+    all_names = union.get_feature_names_out()
+    word_mask = [name.startswith("word__") for name in all_names]
+    display_names = [name[len("word__"):] for name, m in zip(all_names, word_mask) if m]
+    word_indices = [i for i, m in enumerate(word_mask) if m]
+    coef = clf.coef_[:, word_indices]
+    return display_names, coef
+
+
+def print_top_features(pipeline: Pipeline, n: int) -> None:
+    feature_names, coef = get_word_features(pipeline)
     clf: LogisticRegression = pipeline.named_steps["clf"]
 
-    print(f"\nTop {n} tokens per sender:")
+    print(f"\nTop {n} words per sender:")
     print("-" * 50)
     for i, label in enumerate(clf.classes_):
-        coefs = clf.coef_[i]
-        top_idx = coefs.argsort()[-n:][::-1]
+        top_idx = coef[i].argsort()[-n:][::-1]
         tokens = ", ".join(feature_names[j] for j in top_idx)
         print(f"  {short_name(label):<20} {tokens}")
 
@@ -72,10 +110,7 @@ def print_length_breakdown(
     print("-" * 50)
     for lo, hi in _LENGTH_BINS:
         label = f"{lo}–{hi}" if hi else f"{lo}+"
-        mask = [
-            lo <= word_count(t) <= (hi if hi else 10**9)
-            for t in X_test
-        ]
+        mask = [lo <= word_count(t) <= (hi if hi else 10**9) for t in X_test]
         yt = [y for y, m in zip(y_test, mask) if m]
         yp = [y for y, m in zip(y_pred, mask) if m]
         if not yt:
@@ -90,6 +125,7 @@ def classify(
     top_features: int = 10,
     test_size: float = 0.2,
     seed: int = 42,
+    char_ngrams: bool = True,
     report: bool = True,
     features: bool = True,
     length_breakdown: bool = True,
@@ -99,11 +135,12 @@ def classify(
     Args:
         db:                Path to the SQLite database (default: cats.db).
         top_senders:       Number of most active senders to classify (default: 5).
-        top_features:      Number of top discriminating tokens to show per sender.
+        top_features:      Number of top discriminating words to show per sender.
         test_size:         Fraction of data held out for evaluation (default: 0.2).
         seed:              Random seed for reproducibility.
+        char_ngrams:       Use character n-gram features in addition to words (default: True).
         report:            Show per-sender classification report (default: True).
-        features:          Show top discriminating tokens per sender (default: True).
+        features:          Show top discriminating words per sender (default: True).
         length_breakdown:  Show accuracy broken down by message length (default: True).
     """
     db_path = Path(db)
@@ -122,26 +159,9 @@ def classify(
         texts, labels, test_size=test_size, stratify=labels, random_state=seed
     )
 
-    pipeline = Pipeline([
-        ("features", FeatureUnion([
-            ("word", TfidfVectorizer(
-                token_pattern=r"[֐-׿\w]{2,}",
-                min_df=5,
-                max_features=50_000,
-                sublinear_tf=True,
-            )),
-            ("char", TfidfVectorizer(
-                analyzer="char_wb",
-                ngram_range=(2, 5),
-                min_df=5,
-                max_features=100_000,
-                sublinear_tf=True,
-            )),
-        ])),
-        ("clf", LogisticRegression(max_iter=1000, C=5.0, random_state=seed)),
-    ])
-
-    print(f"\nTraining on {len(X_train):,} messages, evaluating on {len(X_test):,}...")
+    model_desc = "word + char n-grams" if char_ngrams else "word n-grams only"
+    print(f"\nTraining on {len(X_train):,} messages, evaluating on {len(X_test):,} ({model_desc})...")
+    pipeline = build_pipeline(char_ngrams, seed)
     pipeline.fit(X_train, y_train)
 
     y_pred = pipeline.predict(X_test)
