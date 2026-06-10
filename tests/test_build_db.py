@@ -125,6 +125,35 @@ def test_build_db_writes_schema_and_rows(tmp_path: Path) -> None:
         con.close()
 
 
+def test_parse_file_single_digit_hour_new_format(tmp_path: Path) -> None:
+    chat = tmp_path / "chat.txt"
+    chat.write_text(
+        "[10/06/2026, 0:11:42] Alice: midnight message\n"
+        "[10/06/2026, 9:05:03] Bob: morning message\n",
+        encoding="utf-8",
+    )
+
+    messages = _parse_file(chat)
+
+    assert len(messages) == 2
+    assert messages[0].ts == "2026-06-10 00:11:42"
+    assert messages[1].ts == "2026-06-10 09:05:03"
+
+
+def test_parse_file_single_digit_hour_old_format(tmp_path: Path) -> None:
+    chat = tmp_path / "chat.txt"
+    chat.write_text(
+        "10/06/2026, 0:11 - Alice: early message\n",
+        encoding="utf-8",
+    )
+
+    messages = _parse_file(chat)
+
+    assert len(messages) == 1
+    assert messages[0].ts == "2026-06-10 00:11:00"
+    assert messages[0].sender == "Alice"
+
+
 def test_build_db_overwrites_existing(tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
 

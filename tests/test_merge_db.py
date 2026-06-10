@@ -89,6 +89,47 @@ def test_merge_empty_source(tmp_path: Path) -> None:
     assert _fts_count(target) == 1
 
 
+def test_merge_deduplicates_mixed_precision(tmp_path: Path) -> None:
+    target = tmp_path / "target.db"
+    source = tmp_path / "source.db"
+
+    # Same message: old-format export stores HH:MM:00, new-format stores exact seconds
+    old_fmt = Message(
+        ts="2026-06-05 14:30:00", sender="Alice", body="hello", is_system=False
+    )
+    new_fmt = Message(
+        ts="2026-06-05 14:30:45", sender="Alice", body="hello", is_system=False
+    )
+
+    _build_db(target, [old_fmt])
+    _build_db(source, [new_fmt])
+
+    exit_code = _merge(target, source)
+
+    assert exit_code == 0
+    assert len(_read_rows(target)) == 1
+
+
+def test_merge_keeps_distinct_messages_same_minute(tmp_path: Path) -> None:
+    target = tmp_path / "target.db"
+    source = tmp_path / "source.db"
+
+    msg1 = Message(
+        ts="2026-06-05 14:30:10", sender="Alice", body="first", is_system=False
+    )
+    msg2 = Message(
+        ts="2026-06-05 14:30:50", sender="Alice", body="second", is_system=False
+    )
+
+    _build_db(target, [msg1])
+    _build_db(source, [msg2])
+
+    exit_code = _merge(target, source)
+
+    assert exit_code == 0
+    assert len(_read_rows(target)) == 2
+
+
 def test_merge_into_empty_target(tmp_path: Path) -> None:
     target = tmp_path / "target.db"
     source = tmp_path / "source.db"
