@@ -51,7 +51,7 @@ def word_count(text: str) -> int:
     return len(_WORD_RE.findall(text))
 
 
-def build_pipeline(char_ngrams: bool, seed: int) -> Pipeline:
+def build_pipeline(char: bool, seed: int) -> Pipeline:
     word_vec = TfidfVectorizer(
         token_pattern=r"[֐-׿\w]{2,}",
         min_df=5,
@@ -59,7 +59,7 @@ def build_pipeline(char_ngrams: bool, seed: int) -> Pipeline:
         sublinear_tf=True,
     )
     clf = LogisticRegression(max_iter=1000, C=5.0, random_state=seed)
-    if not char_ngrams:
+    if not char:
         return Pipeline([("tfidf", word_vec), ("clf", clf)])
     return Pipeline([
         ("features", FeatureUnion([
@@ -103,7 +103,7 @@ def print_top_features(pipeline: Pipeline, n: int) -> None:
         print(f"  {short_name(label):<20} {tokens}")
 
 
-def print_length_breakdown(
+def print_lengths(
     X_test: list[str], y_test: list[str], y_pred: list[str]
 ) -> None:
     print("\nAccuracy by message length:")
@@ -125,10 +125,10 @@ def classify(
     top_features: int = 10,
     test_size: float = 0.2,
     seed: int = 42,
-    char_ngrams: bool = True,
+    char: bool = True,
     report: bool = True,
     features: bool = True,
-    length_breakdown: bool = True,
+    lengths: bool = True,
 ) -> None:
     """Train a sender attribution classifier on a whatsdb SQLite database.
 
@@ -138,10 +138,10 @@ def classify(
         top_features:      Number of top discriminating words to show per sender.
         test_size:         Fraction of data held out for evaluation (default: 0.2).
         seed:              Random seed for reproducibility.
-        char_ngrams:       Use character n-gram features in addition to words (default: True).
+        char:              Use character n-gram features in addition to words (default: True).
         report:            Show per-sender classification report (default: True).
         features:          Show top discriminating words per sender (default: True).
-        length_breakdown:  Show accuracy broken down by message length (default: True).
+        lengths:           Show accuracy broken down by message length (default: True).
     """
     db_path = Path(db)
     if not db_path.exists():
@@ -159,9 +159,9 @@ def classify(
         texts, labels, test_size=test_size, stratify=labels, random_state=seed
     )
 
-    model_desc = "word + char n-grams" if char_ngrams else "word n-grams only"
+    model_desc = "word + char n-grams" if char else "word n-grams only"
     print(f"\nTraining on {len(X_train):,} messages, evaluating on {len(X_test):,} ({model_desc})...")
-    pipeline = build_pipeline(char_ngrams, seed)
+    pipeline = build_pipeline(char, seed)
     pipeline.fit(X_train, y_train)
 
     y_pred = pipeline.predict(X_test)
@@ -170,8 +170,8 @@ def classify(
     if report:
         print("\n" + classification_report(y_test, y_pred, target_names=target_names))
 
-    if length_breakdown:
-        print_length_breakdown(X_test, y_test, y_pred)
+    if lengths:
+        print_lengths(X_test, y_test, y_pred)
 
     if features:
         print_top_features(pipeline, top_features)
