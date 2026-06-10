@@ -110,7 +110,7 @@ def print_top_features(pipeline: Pipeline, n: int) -> None:
     # Binary logistic regression stores only 1 coefficient row (positive class).
     # The negative class's signal is the mirror.
     if coef.shape[0] == 1:
-        coef = np.vstack([coef, -coef])
+        coef = np.vstack([-coef, coef])
 
     print(f"\nTop {n} words per sender:")
     print("-" * 50)
