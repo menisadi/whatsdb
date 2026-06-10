@@ -11,7 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline, FeatureUnion
 
 _OMITTED = {"<media omitted>", "null", "this message was deleted"}
 
@@ -46,9 +46,9 @@ def short_name(name: str) -> str:
 def print_top_features(
     pipeline: Pipeline, label_names: list[str], n: int
 ) -> None:
-    vectorizer: TfidfVectorizer = pipeline.named_steps["tfidf"]
+    union: FeatureUnion = pipeline.named_steps["features"]
+    feature_names = union.get_feature_names_out()
     clf: LogisticRegression = pipeline.named_steps["clf"]
-    feature_names = vectorizer.get_feature_names_out()
 
     print(f"\nTop {n} tokens per sender:")
     print("-" * 50)
@@ -92,12 +92,21 @@ def classify(
     )
 
     pipeline = Pipeline([
-        ("tfidf", TfidfVectorizer(
-            token_pattern=r"[֐-׿\w]{2,}",
-            min_df=5,
-            max_features=50_000,
-            sublinear_tf=True,
-        )),
+        ("features", FeatureUnion([
+            ("word", TfidfVectorizer(
+                token_pattern=r"[֐-׿\w]{2,}",
+                min_df=5,
+                max_features=50_000,
+                sublinear_tf=True,
+            )),
+            ("char", TfidfVectorizer(
+                analyzer="char_wb",
+                ngram_range=(2, 5),
+                min_df=5,
+                max_features=100_000,
+                sublinear_tf=True,
+            )),
+        ])),
         ("clf", LogisticRegression(max_iter=1000, C=5.0, random_state=seed)),
     ])
 
