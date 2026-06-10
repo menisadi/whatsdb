@@ -36,8 +36,20 @@ def load_messages_by_sender(db: str, top_senders: int) -> dict[str, list[str]]:
     return result
 
 
-def short_name(name: str) -> str:
-    return name.split()[0]
+def build_display_names(senders: set[str]) -> dict[str, str]:
+    """Return shortest unambiguous label per sender (first name, or first+last on collision)."""
+    first_names: dict[str, list[str]] = {}
+    for name in senders:
+        first_names.setdefault(name.split()[0], []).append(name)
+    result = {}
+    for name in senders:
+        parts = name.split()
+        first = parts[0]
+        if len(first_names[first]) == 1:
+            result[name] = first
+        else:
+            result[name] = " ".join(parts[:2]) if len(parts) > 1 else name
+    return result
 
 
 def generate(
@@ -72,12 +84,13 @@ def generate(
             )
         messages_by_sender = {s: messages_by_sender[s] for s in matches}
 
+    display = build_display_names(set(messages_by_sender.keys()))
     print(
         f"Training Markov chain (state_size={state_size}) for {len(messages_by_sender)} sender(s):\n"
     )
 
     for name, msgs in sorted(messages_by_sender.items(), key=lambda x: -counts[x[0]]):
-        print(f"--- {short_name(name)} ({counts[name]:,} messages) ---")
+        print(f"--- {display[name]} ({counts[name]:,} messages) ---")
         try:
             model = markovify.NewlineText("\n".join(msgs), state_size=state_size)
         except Exception:
@@ -182,12 +195,13 @@ def converse(
         f"Training Markov chain (state_size={state_size}) for {len(messages_by_sender)} sender(s)...\n"
     )
 
+    display = build_display_names(set(messages_by_sender.keys()))
     models: dict[str, markovify.NewlineText] = {}
     for name, msgs in messages_by_sender.items():
         try:
             models[name] = markovify.NewlineText("\n".join(msgs), state_size=state_size)
         except Exception:
-            print(f"  Skipping {short_name(name)}: not enough data.")
+            print(f"  Skipping {display[name]}: not enough data.")
 
     if len(models) < 2:
         raise RuntimeError(
@@ -212,7 +226,7 @@ def converse(
         sentence = _make_sentence(models[speaker], last_sentence if coherent else None)
         last_sentence = sentence if sentence != "(...)" else last_sentence
 
-        print(f"  {short_name(speaker):<16} {sentence}")
+        print(f"  {display[speaker]:<16} {sentence}")
 
     print("-" * 50)
 
