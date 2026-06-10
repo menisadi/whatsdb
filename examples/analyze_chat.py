@@ -41,6 +41,7 @@ _PERIOD_SQL = {
 def parse(
     db: str = "cats.db",
     period: str = "day",
+    utc_offset: int = 0,
 ) -> tuple[defaultdict[str, dict[str, Any]], dict[str, str]]:
     if period not in _PERIOD_SQL:
         raise ValueError(f"period must be one of: {', '.join(_PERIOD_SQL)}")
@@ -48,10 +49,12 @@ def parse(
         lambda: {"messages": [], "senders": Counter()}
     )
     all_senders: set[str] = set()
+    ts_expr = f"datetime(ts, '{utc_offset:+d} hours')" if utc_offset else "ts"
+    period_expr = _PERIOD_SQL[period].replace("ts", ts_expr)
     con = sqlite3.connect(db)
     cur = con.cursor()
     cur.execute(
-        f"SELECT {_PERIOD_SQL[period]}, sender, body FROM messages"
+        f"SELECT {period_expr}, sender, body FROM messages"
         + " WHERE is_system = 0 AND sender IS NOT NULL"
     )
     for date, sender, body in cur.fetchall():
@@ -130,6 +133,7 @@ def analyze(
     aliases_file: str | None = None,
     no_bidi: bool = False,
     period: str = "day",
+    utc_offset: int = 0,
 ) -> None:
     """Analyze WhatsApp chat history and show busiest days with top keywords.
 
@@ -145,11 +149,12 @@ def analyze(
         aliases_file: Path to aliases file. Lines: "Full Name=Label".
         no_bidi:      Disable bidi reordering (useful when pasting into RTL-aware apps).
         period:       Grouping period: day, week, or month (default: day).
+        utc_offset:   Hours to shift timestamps before grouping (e.g. 3 or -5).
     """
     global _bidi_enabled
     if no_bidi:
         _bidi_enabled = False
-    messages_by_day, display_names = parse(db, period)
+    messages_by_day, display_names = parse(db, period, utc_offset)
     name_tokens: set[str] = {
         token.lower() for name in display_names for token in name.split()
     }
