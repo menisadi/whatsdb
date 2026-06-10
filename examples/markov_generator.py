@@ -3,6 +3,7 @@
 # ///
 
 import random
+import re
 import sqlite3
 from collections import Counter
 from pathlib import Path
@@ -97,6 +98,62 @@ def generate(
         print()
 
 
+_SKIP = {
+    "את",
+    "אני",
+    "אתה",
+    "הוא",
+    "היא",
+    "אנחנו",
+    "הם",
+    "הן",
+    "של",
+    "על",
+    "עם",
+    "כי",
+    "אם",
+    "לא",
+    "כן",
+    "זה",
+    "זו",
+    "יש",
+    "אין",
+    "the",
+    "a",
+    "an",
+    "is",
+    "it",
+    "i",
+    "you",
+    "we",
+    "to",
+    "in",
+    "of",
+    "and",
+    "or",
+    "but",
+}
+_WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+
+
+def _make_sentence(model: markovify.NewlineText, prev: str | None) -> str:
+    if prev:
+        words = [w for w in _WORD_RE.findall(prev.lower()) if w not in _SKIP]
+        random.shuffle(words)
+        for word in words:
+            try:
+                result = model.make_sentence_with_start(word, tries=10, strict=False)
+                if result:
+                    return result
+            except (KeyError, markovify.text.ParamError):
+                continue
+    for _ in range(30):
+        result = model.make_sentence(tries=10)
+        if result:
+            return result
+    return "(...)"
+
+
 def converse(
     db: str = "cats.db",
     senders: int = 2,
@@ -138,22 +195,20 @@ def converse(
     participants = list(models.keys())
     print("-" * 50)
 
-    last = None
+    last_sender: str | None = None
+    last_sentence: str | None = None
     for _ in range(turns):
-        # Avoid the same sender twice in a row
-        pool = [p for p in participants if p != last] if last else participants
+        pool = (
+            [p for p in participants if p != last_sender]
+            if last_sender
+            else participants
+        )
         pool_weights = [counts[p] for p in pool]
         speaker = random.choices(pool, weights=pool_weights, k=1)[0]
-        last = speaker
+        last_sender = speaker
 
-        sentence = None
-        for _ in range(30):
-            sentence = models[speaker].make_sentence(tries=10)
-            if sentence:
-                break
-
-        if not sentence:
-            sentence = "(...)"
+        sentence = _make_sentence(models[speaker], last_sentence)
+        last_sentence = sentence if sentence != "(...)" else last_sentence
 
         print(f"  {short_name(speaker):<16} {sentence}")
 
