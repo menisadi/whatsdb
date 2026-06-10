@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 import fire
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
@@ -105,6 +106,11 @@ def get_word_features(pipeline: Pipeline) -> tuple[list[str], list]:
 def print_top_features(pipeline: Pipeline, n: int) -> None:
     feature_names, coef = get_word_features(pipeline)
     clf: LogisticRegression = pipeline.named_steps["clf"]
+
+    # Binary logistic regression stores only 1 coefficient row (positive class).
+    # The negative class's signal is the mirror.
+    if coef.shape[0] == 1:
+        coef = np.vstack([coef, -coef])
 
     print(f"\nTop {n} words per sender:")
     print("-" * 50)
