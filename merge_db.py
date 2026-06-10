@@ -19,7 +19,7 @@ def _merge(target: Path, source: Path) -> int:
     try:
         con.execute("ATTACH ? AS upd", (str(source),))
         con.execute(
-            "CREATE INDEX IF NOT EXISTS idx_dedup ON messages(ts, body, sender)"
+            "CREATE INDEX IF NOT EXISTS idx_dedup ON messages(STRFTIME('%Y-%m-%d %H:%M', ts), body, sender)"
         )
 
         before_main = _count(con, "messages")
@@ -34,7 +34,7 @@ def _merge(target: Path, source: Path) -> int:
             FROM upd.messages u
             WHERE NOT EXISTS (
                 SELECT 1 FROM messages m
-                WHERE m.ts = u.ts
+                WHERE STRFTIME('%Y-%m-%d %H:%M', m.ts) = STRFTIME('%Y-%m-%d %H:%M', u.ts)
                   AND m.body = u.body
                   AND m.sender IS u.sender
             )
