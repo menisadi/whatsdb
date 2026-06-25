@@ -10,16 +10,14 @@ wheels/
 .venv
 
 # Data / chat backups
-cats.txt
-cats_update.txt
 *.db
+*.txt
+*.db.bak
 
 # Generated outputs
 *.csv
 summary*.md
 legend.md
-aliases.txt
-*.txt
 
 # Stuff folder
 stuff/
