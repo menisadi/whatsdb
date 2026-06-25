@@ -19,6 +19,7 @@ cats_update.txt
 summary*.md
 legend.md
 aliases.txt
+*.txt
 
 # Stuff folder
 stuff/
