@@ -77,14 +77,14 @@ def summarize(
 
     summary = result.stdout.strip()
 
-    console.print(
-        Panel(summary, title=f"סיכום — {hours}h אחרונות", border_style="blue")
-    )
-
     if output:
         out_path = Path(output)
         out_path.write_text(summary, encoding="utf-8")
         console.print(f"[green]✓[/green] Summary saved to [bold]{out_path}[/bold]")
+    else:
+        console.print(
+            Panel(summary, title=f"סיכום — {hours}h אחרונות", border_style="blue")
+        )
 
 
 if __name__ == "__main__":
