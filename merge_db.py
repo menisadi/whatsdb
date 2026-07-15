@@ -1,4 +1,9 @@
-"""Merge a source WhatsApp SQLite database into a target, skipping duplicates."""
+"""Merge a source WhatsApp SQLite database into a target, skipping duplicates.
+
+Note: merged rows are appended in source-scan order at the end of the `id`
+range, regardless of their `ts`. After a merge, `id` order no longer tracks
+chronological order — use `ORDER BY ts` for any time-based analysis.
+"""
 
 from __future__ import annotations
 
