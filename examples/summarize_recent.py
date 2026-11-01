@@ -17,17 +17,29 @@ from rich.panel import Panel
 console = Console()
 
 
+def parse_bound(value: str, is_end: bool) -> datetime:
+    """Parse 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM'; a date-only end covers that whole day."""
+    dt = datetime.fromisoformat(str(value))
+    if is_end and len(str(value).strip()) <= 10:
+        dt += timedelta(days=1)
+    return dt
+
+
 def summarize(
     db: str = "cats.db",
     hours: int = 24,
+    start: str | None = None,
+    end: str | None = None,
     output: str | None = None,
     model: str | None = None,
 ) -> None:
-    """Query recent messages and ask Claude to summarize them in Hebrew.
+    """Query messages and ask Claude to summarize them in Hebrew.
 
     Args:
         db: Path to the SQLite database.
-        hours: How many hours back to include (default: 24).
+        hours: How many hours back to include (default: 24). Ignored if start is set.
+        start: Range start, 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM'.
+        end: Range end (default: now). A date-only value includes that whole day.
         output: File path to save the summary; prints to stdout if omitted.
         model: Claude model alias to use (e.g. 'sonnet', 'opus').
     """
@@ -36,20 +48,39 @@ def summarize(
         console.print(f"[red]Error:[/red] database '{db_path}' not found")
         sys.exit(1)
 
-    since = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    use_range = start is not None or end is not None
+    if use_range and start is None:
+        console.print("[red]Error:[/red] --end requires --start")
+        sys.exit(1)
+    if start is not None:
+        since_dt = parse_bound(start, is_end=False)
+        until_dt = parse_bound(end, is_end=True) if end else datetime.now()
+        label = f"{since_dt:%Y-%m-%d %H:%M} – {until_dt:%Y-%m-%d %H:%M}"
+        prompt_span = f"מ-{since_dt:%Y-%m-%d %H:%M} עד {until_dt:%Y-%m-%d %H:%M}"
+        title = f"סיכום — {label}"
+    else:
+        since_dt = datetime.now() - timedelta(hours=hours)
+        until_dt = None
+        label = f"the last {hours}h"
+        prompt_span = f"מ-{hours} השעות האחרונות"
+        title = f"סיכום — {hours}h אחרונות"
 
-    with console.status(f"[bold]Querying messages from the last {hours}h…[/bold]"):
+    since = since_dt.strftime("%Y-%m-%d %H:%M:%S")
+    until = until_dt.strftime("%Y-%m-%d %H:%M:%S") if until_dt else None
+
+    with console.status(f"[bold]Querying messages from {label}…[/bold]"):
         con = sqlite3.connect(db_path)
         cur = con.cursor()
-        rows = cur.execute(
-            "SELECT ts, sender, body FROM messages"
-            " WHERE ts >= ? AND is_system = 0 ORDER BY ts",
-            (since,),
-        ).fetchall()
+        query = "SELECT ts, sender, body FROM messages WHERE ts >= ? AND is_system = 0"
+        params: tuple[str, ...] = (since,)
+        if until:
+            query += " AND ts < ?"
+            params += (until,)
+        rows = cur.execute(query + " ORDER BY ts", params).fetchall()
         con.close()
 
     if not rows:
-        console.print(f"[yellow]No messages found in the last {hours} hours.[/yellow]")
+        console.print(f"[yellow]No messages found in {label}.[/yellow]")
         return
 
     console.print(f"[green]✓[/green] Found [bold]{len(rows):,}[/bold] messages.")
@@ -57,7 +88,7 @@ def summarize(
     chat_text = "\n".join(f"[{ts}] {sender}: {body}" for ts, sender, body in rows)
 
     prompt = (
-        f"להלן שיחת וואטסאפ מ-{hours} השעות האחרונות.\n"
+        f"להלן שיחת וואטסאפ {prompt_span}.\n"
         "אנא כתוב סיכום קצר של השיחה בעברית, \n\n"
         f"{chat_text}"
     )
@@ -82,9 +113,7 @@ def summarize(
         out_path.write_text(summary, encoding="utf-8")
         console.print(f"[green]✓[/green] Summary saved to [bold]{out_path}[/bold]")
     else:
-        console.print(
-            Panel(summary, title=f"סיכום — {hours}h אחרונות", border_style="blue")
-        )
+        console.print(Panel(summary, title=title, border_style="blue"))
 
 
 if __name__ == "__main__":
