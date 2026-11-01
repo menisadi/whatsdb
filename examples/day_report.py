@@ -132,7 +132,14 @@ def fmt_words(words: list[tuple[str, int]], counts: bool) -> str:
 
 
 class DayReport:
-    """Report for a single day of chat history."""
+    """Report for a single day of chat history.
+
+    Commands:
+        stats  DATE   Message counts per speaker, hourly activity, extras.
+        topics DATE   Distinctive keywords for the day and per conversation.
+
+    Run `day_report.py <command> --help` for options.
+    """
 
     def stats(
         self,
