@@ -3,6 +3,7 @@
 # ///
 
 import csv
+import math
 import re
 import sqlite3
 import sys
@@ -103,17 +104,29 @@ def fmt_senders(
     )
 
 
-def top_words_for(
-    msgs: list[str], n: int, exclude: set[str] | None = None
-) -> list[tuple[str, int]]:
-    if exclude is None:
-        exclude = set()
+def _tokenize(msgs: list[str], exclude: set[str]) -> list[str]:
     all_text = " ".join(msgs)
     words = re.findall(r"[\u0590-\u05ffa-zA-Z']{2,}", all_text.lower())
-    words = [
-        w for w in words if w not in STOP_WORDS and w not in exclude and len(w) > 2
-    ]
-    return Counter(words).most_common(n)
+    return [w for w in words if w not in STOP_WORDS and w not in exclude and len(w) > 2]
+
+
+def top_words_for(
+    msgs: list[str],
+    n: int,
+    exclude: set[str] | None = None,
+    df: Counter[str] | None = None,
+    n_docs: int = 0,
+) -> list[tuple[str, int]]:
+    """Top words by raw count, or by TF-IDF when df (document frequency) is given."""
+    if exclude is None:
+        exclude = set()
+    tf = Counter(_tokenize(msgs, exclude))
+    if df is None:
+        return tf.most_common(n)
+    scored = sorted(
+        tf.items(), key=lambda x: x[1] * math.log(n_docs / df[x[0]]), reverse=True
+    )
+    return scored[:n]
 
 
 def apply_aliases(display_names: dict[str, str], pairs: list[str]) -> None:
@@ -139,6 +152,7 @@ def analyze(
     rank_by: str = "messages",
     long_pct: int = 90,
     show_long: bool = False,
+    rank_words: str = "count",
 ) -> None:
     """Analyze WhatsApp chat history and show busiest days with top keywords.
 
@@ -159,6 +173,8 @@ def analyze(
         long_pct:     A message is "long" if its word count exceeds this percentile
                       of all messages (default: 90).
         show_long:    Show the long-message column (always shown when --rank_by long).
+        rank_words:   Top-word ranking: count (default) or tfidf (words distinctive
+                      to the period vs. the whole chat).
     """
     global _bidi_enabled
     if no_bidi:
@@ -179,6 +195,13 @@ def analyze(
         raise ValueError("rank_by must be one of: messages, long")
     if not 0 <= long_pct < 100:
         raise ValueError("long_pct must be in [0, 100)")
+    if rank_words not in ("count", "tfidf"):
+        raise ValueError("rank_words must be one of: count, tfidf")
+    df: Counter[str] | None = None
+    if rank_words == "tfidf":
+        df = Counter()
+        for day in messages_by_day.values():
+            df.update(set(_tokenize(day["messages"], name_tokens)))
     word_counts_all = sorted(
         len(m.split()) for day in messages_by_day.values() for m in day["messages"]
     )
@@ -204,7 +227,9 @@ def analyze(
             date,
             len(day["messages"]),
             day["long"],
-            top_words_for(day["messages"], top_words, name_tokens),
+            top_words_for(
+                day["messages"], top_words, name_tokens, df, len(messages_by_day)
+            ),
             day["senders"],
         )
         for rank, (date, day) in enumerate(ranked, 1)
