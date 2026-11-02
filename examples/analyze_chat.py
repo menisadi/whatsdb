@@ -47,7 +47,7 @@ def parse(
     if period not in _PERIOD_SQL:
         raise ValueError(f"period must be one of: {', '.join(_PERIOD_SQL)}")
     messages_by_day: defaultdict[str, dict[str, Any]] = defaultdict(
-        lambda: {"messages": [], "senders": Counter()}
+        lambda: {"messages": [], "authors": [], "senders": Counter()}
     )
     all_senders: set[str] = set()
     ts_expr = f"datetime(ts, '{utc_offset:+d} hours')" if utc_offset else "ts"
@@ -63,6 +63,7 @@ def parse(
             continue
         all_senders.add(sender)
         messages_by_day[date]["messages"].append(body)
+        messages_by_day[date]["authors"].append(sender)
         messages_by_day[date]["senders"][sender] += 1
     con.close()
     return messages_by_day, build_display_names(all_senders)
@@ -96,11 +97,26 @@ def build_display_names(all_senders: set[str]) -> dict[str, str]:
 
 
 def fmt_senders(
-    sender_counts: Counter[str], display_names: dict[str, str], n: int
+    sender_counts: Counter[str],
+    display_names: dict[str, str],
+    n: int,
+    long_counts: Counter[str] | None = None,
 ) -> str:
+    """Top n senders as "name(total)", or "name(long/total)" ranked by long count."""
+
+    def label(name: str) -> str:
+        return bidi(display_names.get(name, name.split()[0]))
+
+    if long_counts is None:
+        return " ".join(
+            f"{label(name)}({cnt})" for name, cnt in sender_counts.most_common(n)
+        )
+    ranked = sorted(
+        sender_counts, key=lambda s: (long_counts[s], sender_counts[s]), reverse=True
+    )
     return " ".join(
-        f"{bidi(display_names.get(name, name.split()[0]))}({cnt})"
-        for name, cnt in sender_counts.most_common(n)
+        f"{label(name)}({long_counts[name]}/{sender_counts[name]})"
+        for name in ranked[:n]
     )
 
 
@@ -162,7 +178,9 @@ def analyze(
         top_words:    Number of top words per period (default: 5).
         csv_output:   Print output as CSV instead of a table.
         counts:       Show occurrence count next to each top word.
-        per_user:     Add a column showing per-sender message counts.
+        per_user:     Add a column showing per-sender message counts. With
+                      --rank_by long, senders are ranked by long messages and
+                      shown as long/all.
         top_senders:  Number of top senders to show when --per_user is set (default: 3).
         aliases:      Override display names inline, e.g. "Meni Sadigurschi=מני,Other=X".
         aliases_file: Path to aliases file. Lines: "Full Name=Label".
@@ -213,7 +231,12 @@ def analyze(
         else 0
     )
     for day in messages_by_day.values():
-        day["long"] = sum(len(m.split()) > long_threshold for m in day["messages"])
+        day["long_senders"] = Counter(
+            s
+            for m, s in zip(day["messages"], day["authors"])
+            if len(m.split()) > long_threshold
+        )
+        day["long"] = day["long_senders"].total()
     metric = "long" if rank_by == "long" else None
     ranked = sorted(
         messages_by_day.items(),
@@ -231,14 +254,15 @@ def analyze(
                 day["messages"], top_words, name_tokens, df, len(messages_by_day)
             ),
             day["senders"],
+            day["long_senders"] if metric else None,
         )
         for rank, (date, day) in enumerate(ranked, 1)
     ]
 
     def fmt_words(word_counts: list[tuple[str, int]]) -> str:
         if counts:
-            return bidi(", ".join(f"{w}({c})" for w, c in word_counts))
-        return bidi(", ".join(w for w, _ in word_counts))
+            return ", ".join(f"{bidi(w)}({c})" for w, c in word_counts)
+        return ", ".join(bidi(w) for w, _ in word_counts)
 
     if show_long:
         print(
@@ -253,33 +277,39 @@ def analyze(
             header.append("long")
         header.append("top_words")
         if per_user:
-            header.append("per_user")
+            header.append("per_user_long/all" if metric else "per_user")
         writer.writerow(header)
-        for rank, date, count, long_count, word_counts, senders in rows:
+        for rank, date, count, long_count, word_counts, senders, long_snd in rows:
             row = [rank, date, count]
             if show_long:
                 row.append(long_count)
             row.append(fmt_words(word_counts))
             if per_user:
-                row.append(fmt_senders(senders, display_names, top_senders))
+                row.append(fmt_senders(senders, display_names, top_senders, long_snd))
             writer.writerow(row)
     else:
         period_label = period.capitalize()
+        words_strs = [fmt_words(row[4]) for row in rows]
+        words_w = max(len("Top words"), *map(len, words_strs))
         header = f"{'Rank':<5} {period_label:<14} {'Messages':<10} "
         if show_long:
             header += f"{'Long':<8}"
-        header += "Top words"
+        header += f"{'Top words':<{words_w}}"
         if per_user:
-            header += f"  {'Per user'}"
+            header += "  Per user (long/all)" if metric else "  Per user"
         print(header)
-        print("-" * (90 if per_user else 70))
-        for rank, date, count, long_count, word_counts, senders in rows:
+        print("-" * len(header))
+        for (rank, date, count, long_count, _, senders, long_snd), words_str in zip(
+            rows, words_strs
+        ):
             line = f"{rank:<5} {date:<14} {count:<10} "
             if show_long:
                 line += f"{long_count:<8}"
-            line += f"{fmt_words(word_counts):<30}"
+            line += f"{words_str:<{words_w}}"
             if per_user:
-                line += f"  {fmt_senders(senders, display_names, top_senders)}"
+                line += "  " + fmt_senders(
+                    senders, display_names, top_senders, long_snd
+                )
             print(line)
 
 
