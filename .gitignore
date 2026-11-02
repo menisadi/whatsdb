@@ -24,3 +24,4 @@ stuff/
 
 # Claude memory
 .claude/
+/examples/avatars
